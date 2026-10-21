@@ -28,6 +28,8 @@ jobs:
         run: |
           mkdir -p ~/.android
           cp tool/fotojas-debug.keystore ~/.android/debug.keystore
+      - name: Instalar NDK de Android
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null || true
       - run: flutter pub get
       - run: flutter --version
       - name: Análisis de código
