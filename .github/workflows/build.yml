@@ -37,7 +37,15 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter test
       - name: Compilar APK
-        run: flutter build apk --release --build-number=${{ github.run_number }}
+        run: |
+          set -o pipefail
+          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee build.log
+      - name: Mostrar error de compilación
+        if: failure()
+        run: |
+          [ -f build.log ] || exit 0
+          msg=$(grep -iE "error|fail|exception|what went wrong" -A3 build.log | tail -50 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Android build::$msg"
       - run: cp build/app/outputs/flutter-apk/app-release.apk FotoJAS.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -58,7 +66,18 @@ jobs:
         run: python tool/prepare_platforms.py windows
       - run: flutter pub get
       - name: Compilar Windows
-        run: flutter build windows --release --build-number=${{ github.run_number }}
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build windows --release --build-number=${{ github.run_number }} 2>&1 | tee build.log
+      - name: Mostrar error de compilación
+        if: failure()
+        shell: bash
+        run: |
+          msg=$(grep -iE "error|fail|exception|warning C|LNK" build.log | tail -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Windows build::$msg"
+          msg2=$(tail -60 build.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Windows log tail::$msg2"
       - name: Empaquetar
         shell: pwsh
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath FotoJAS-Windows.zip
