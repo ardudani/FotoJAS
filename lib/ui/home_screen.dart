@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../services/camera_service.dart';
+import '../services/log.dart';
 import 'capture_screen.dart';
 import 'settings_screen.dart';
 import 'widgets.dart';
@@ -29,7 +30,7 @@ class HomeScreen extends StatelessWidget {
     final s = App.settings;
     return Scaffold(
       body: ListenableBuilder(
-        listenable: Listenable.merge([s, App.drive]),
+        listenable: Listenable.merge([s, App.drive, AppLog.I]),
         builder: (context, _) {
           final size = MediaQuery.sizeOf(context);
           final scale = (size.shortestSide / 600).clamp(0.7, 1.6).toDouble();
@@ -136,6 +137,19 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              if (AppLog.I.errors > 0)
+                Positioned(
+                  right: 12,
+                  bottom: 8,
+                  child: SafeArea(
+                    child: ActionChip(
+                      backgroundColor: Colors.red.shade900,
+                      avatar: const Icon(Icons.error_outline, color: Colors.white, size: 18),
+                      label: Text('Errores: ${AppLog.I.errors}'),
+                      onPressed: () => showLogDialog(context),
+                    ),
+                  ),
+                ),
               // Esquina oculta: mantener pulsado para abrir ajustes
               Positioned(
                 top: 0,
@@ -161,3 +175,22 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+
+/// Muestra el registro de diagnóstico.
+Future<void> showLogDialog(BuildContext context) => showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Registro de diagnóstico'),
+        content: SizedBox(
+          width: 700,
+          child: SingleChildScrollView(
+            reverse: true,
+            child: SelectableText(AppLog.I.lines.join('\n'),
+                style: const TextStyle(fontSize: 12)),
+          ),
+        ),
+        actions: [
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+        ],
+      ),
+    );

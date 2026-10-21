@@ -15,6 +15,7 @@ import '../services/ipp.dart';
 import '../services/printer_service.dart';
 import '../services/storage.dart';
 import '../settings.dart';
+import 'home_screen.dart' show showLogDialog;
 
 const _fonts = {
   'GreatVibes': 'Great Vibes (caligrafía)',
@@ -670,6 +671,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       label: const Text('Salir de FotoJAS'),
                     ),
                   ]),
+                _buttons([
+                  OutlinedButton.icon(
+                    onPressed: () => showLogDialog(context),
+                    icon: const Icon(Icons.bug_report_outlined),
+                    label: const Text('Ver registro de diagnóstico'),
+                  ),
+                ]),
                 if (Platform.isAndroid)
                   _note(
                       'Para que nadie salga de la app: Ajustes de Android > Seguridad > Fijar aplicaciones, y fija FotoJAS.'),

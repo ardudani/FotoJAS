@@ -38,7 +38,7 @@ class CameraService extends ChangeNotifier {
     _initializing = true;
     try {
       error = null;
-      cameras = await availableCameras();
+      cameras = await availableCameras().timeout(const Duration(seconds: 10));
       if (cameras.isEmpty) {
         error = 'No se ha encontrado ninguna cámara';
         return;
@@ -53,7 +53,7 @@ class CameraService extends ChangeNotifier {
       await old?.dispose();
 
       final c = CameraController(cam, _preset, enableAudio: false);
-      await c.initialize();
+      await c.initialize().timeout(const Duration(seconds: 20));
       if (Platform.isAndroid) {
         try {
           await c.setFlashMode(FlashMode.off);
