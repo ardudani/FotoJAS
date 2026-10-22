@@ -1,9 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
-/// Toda la configuración de la app. Se guarda como JSON en SharedPreferences.
+import 'package:path/path.dart' as p;
+
+import 'services/storage.dart';
+
+/// Toda la configuración de la app. Se guarda como JSON en ajustes.json.
 class AppSettings extends ChangeNotifier {
   // ---------- Evento ----------
   String eventName = 'Mi evento';
@@ -63,8 +67,6 @@ class AppSettings extends ChangeNotifier {
   String pin = '1234';
   int idleTimeout = 60;
   bool fullscreen = true;
-
-  static const _key = 'fotojas_settings_v1';
 
   Color get accent => Color(accentColor);
   bool get isPortrait => orientation == 'portrait';
@@ -168,20 +170,48 @@ class AppSettings extends ChangeNotifier {
     fullscreen = v('fullscreen', fullscreen);
   }
 
+  static Future<File> _file() async =>
+      File(p.join((await Storage.supportDir()).path, 'ajustes.json'));
+
   Future<void> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
-    if (raw != null) {
-      try {
-        _fromJson(jsonDecode(raw) as Map<String, dynamic>);
-      } catch (_) {}
+    final f = await _file();
+    if (!await f.exists()) return;
+    try {
+      _fromJson(jsonDecode(await f.readAsString()) as Map<String, dynamic>);
+    } catch (_) {
+      // Si el archivo principal está dañado, prueba con la copia
+      final bak = File('${f.path}.bak');
+      if (await bak.exists()) {
+        _fromJson(jsonDecode(await bak.readAsString()) as Map<String, dynamic>);
+      }
     }
   }
 
+  Future<void>? _saving;
+  bool _dirty = false;
+
+  /// Guarda en disco. Nunca lanza error: la interfaz siempre se actualiza.
   Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(toJson()));
     notifyListeners();
+    _dirty = true;
+    if (_saving != null) return _saving;
+    _saving = () async {
+      try {
+        while (_dirty) {
+          _dirty = false;
+          final f = await _file();
+          final tmp = File('${f.path}.tmp');
+          await tmp.writeAsString(jsonEncode(toJson()), flush: true);
+          if (await f.exists()) await f.copy('${f.path}.bak');
+          await tmp.rename(f.path);
+        }
+      } catch (e) {
+        debugPrint('No se pudieron guardar los ajustes: $e');
+      } finally {
+        _saving = null;
+      }
+    }();
+    return _saving;
   }
 
   /// Modifica y guarda en un solo paso.
