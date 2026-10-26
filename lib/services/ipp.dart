@@ -10,16 +10,59 @@ class IppClient {
   final int port;
   final String path;
 
-  IppClient(this.host, {this.port = 631, this.path = '/ipp/print'});
+  IppClient(this.host, {this.port = 631, this.path = '/ipp/print'})
+      : _secure = _secureHosts[host] ?? false,
+        _activePort = _ports[host] ?? port;
 
   static int _requestId = 1;
+  // Recuerda si cada impresora necesita conexión cifrada (IPPS)
+  static final Map<String, bool> _secureHosts = {};
+  static final Map<String, int> _ports = {};
 
-  String get printerUri => 'ipp://$host:$port$path';
-  Uri get httpUri => Uri.parse('http://$host:$port$path');
+  bool _secure;
+  int _activePort;
 
-  Future<IppResponse> _send(Uint8List body,
+  String get printerUri => '${_secure ? 'ipps' : 'ipp'}://$host:$_activePort$path';
+  Uri get httpUri => Uri.parse('${_secure ? 'https' : 'http'}://$host:$_activePort$path');
+
+  void _remember() {
+    _secureHosts[host] = _secure;
+    _ports[host] = _activePort;
+  }
+
+  /// Envía la petición. Si la impresora pide cifrado (HTTP 426) pasa a IPPS
+  /// automáticamente (puerto 631 y, si no responde, 443).
+  Future<IppResponse> _send(Uint8List Function() build,
       {Duration timeout = const Duration(seconds: 90)}) async {
+    for (var attempt = 0; attempt < 4; attempt++) {
+      final (status, bytes) = await _sendOnce(build(), timeout);
+      if (status == 426 && !_secure) {
+        _secure = true;
+        _remember();
+        continue;
+      }
+      if (status == -1) {
+        if (_secure && _activePort != 443) {
+          _activePort = 443;
+          _remember();
+          continue;
+        }
+        throw IppException('No se pudo establecer la conexión segura (IPPS) con la impresora.');
+      }
+      if (status != 200) {
+        throw IppException('La impresora respondió HTTP $status');
+      }
+      return IppResponse.parse(bytes!);
+    }
+    throw IppException('No se pudo conectar con la impresora.');
+  }
+
+  Future<(int, Uint8List?)> _sendOnce(Uint8List body, Duration timeout) async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    if (_secure) {
+      // Las impresoras usan certificados autofirmados
+      client.badCertificateCallback = (cert, h, p) => true;
+    }
     try {
       final req = await client.postUrl(httpUri);
       req.headers.contentType = ContentType('application', 'ipp');
@@ -29,13 +72,18 @@ class IppClient {
       final bytes = await resp
           .fold<BytesBuilder>(BytesBuilder(), (b, d) => b..add(d))
           .timeout(timeout);
-      if (resp.statusCode != 200) {
-        throw IppException('La impresora respondió HTTP ${resp.statusCode}');
-      }
-      return IppResponse.parse(bytes.takeBytes());
+      return (resp.statusCode, bytes.takeBytes());
+    } on HandshakeException {
+      return (-1, null);
+    } on TlsException {
+      return (-1, null);
     } on SocketException catch (e) {
+      if (_secure) return (-1, null);
       throw IppException(
           'No se puede conectar con la impresora en $host ($e). Comprueba la IP y que esté en la misma red WiFi.');
+    } on HttpException {
+      if (_secure) return (-1, null);
+      rethrow;
     } on TimeoutException {
       throw IppException('La impresora no responde (tiempo agotado).');
     } finally {
@@ -55,6 +103,12 @@ class IppClient {
 
   /// Consulta estado, formatos, papeles y niveles de tinta.
   Future<IppResponse> getPrinterAttributes() async {
+    final resp = await _send(() => _attrsRequest(), timeout: const Duration(seconds: 15));
+    resp.throwIfError();
+    return resp;
+  }
+
+  Uint8List _attrsRequest() {
     final w = _start(0x000B);
     w.strings(0x44, 'requested-attributes', const [
       'printer-make-and-model',
@@ -69,9 +123,7 @@ class IppClient {
       'marker-names',
       'marker-levels',
     ]);
-    final resp = await _send(w.finish(), timeout: const Duration(seconds: 15));
-    resp.throwIfError();
-    return resp;
+    return w.finish();
   }
 
   /// Envía un JPEG a imprimir en 10x15.
@@ -84,6 +136,14 @@ class IppClient {
     int quality = 5,
     String jobName = 'FotoJAS',
   }) async {
+    final resp = await _send(() => _printRequest(jpeg, copies, borderless, mediaType,
+        mediaSource, quality, jobName));
+    resp.throwIfError();
+    return resp;
+  }
+
+  Uint8List _printRequest(Uint8List jpeg, int copies, bool borderless, String mediaType,
+      String mediaSource, int quality, String jobName) {
     final w = _start(0x0002);
     w.string(0x42, 'job-name', jobName);
     w.string(0x49, 'document-format', 'image/jpeg');
@@ -109,9 +169,7 @@ class IppClient {
       w.memberKeyword('media-source', mediaSource);
     }
     w.endCollection();
-    final resp = await _send(w.finish(jpeg));
-    resp.throwIfError();
-    return resp;
+    return w.finish(jpeg);
   }
 }
 
