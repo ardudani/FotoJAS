@@ -540,6 +540,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _text('Ruta IPP', s.ippPath, (v) => _set((x) => x.ippPath = v.trim()),
                       hint: '/ipp/print'),
                   _switch('Sin bordes', s.borderless, (v) => _set((x) => x.borderless = v)),
+                  if (s.borderless)
+                    _stepper('Margen de seguridad sin bordes', s.bleedPercent, 0, 8,
+                        (v) => _set((x) => x.bleedPercent = v),
+                        format: (v) => '$v %'),
+                  if (s.borderless)
+                    _note('Si la foto sale recortada por los bordes, sube este valor. Si se ve una franja del color de fondo, bájalo.'),
                   _dropdown('Tipo de papel', s.mediaType, const {
                     'photographic-glossy': 'Fotográfico brillo',
                     'photographic-high-gloss': 'Fotográfico alto brillo (Premium)',

@@ -48,6 +48,8 @@ class AppSettings extends ChangeNotifier {
   String printerIp = '';
   String ippPath = '/ipp/print';
   bool borderless = true;
+  /// Margen de seguridad (%) por lado para compensar la ampliación sin bordes
+  int bleedPercent = 3;
   String mediaType = 'photographic-glossy';
   String mediaSource = 'auto';
   int printQuality = 5; // 3 borrador, 4 normal, 5 alta
@@ -102,6 +104,7 @@ class AppSettings extends ChangeNotifier {
         'printerIp': printerIp,
         'ippPath': ippPath,
         'borderless': borderless,
+        'bleedPercent': bleedPercent,
         'mediaType': mediaType,
         'mediaSource': mediaSource,
         'printQuality': printQuality,
@@ -153,6 +156,7 @@ class AppSettings extends ChangeNotifier {
     printerIp = v('printerIp', printerIp);
     ippPath = v('ippPath', ippPath);
     borderless = v('borderless', borderless);
+    bleedPercent = v('bleedPercent', bleedPercent);
     mediaType = v('mediaType', mediaType);
     mediaSource = v('mediaSource', mediaSource);
     printQuality = v('printQuality', printQuality);

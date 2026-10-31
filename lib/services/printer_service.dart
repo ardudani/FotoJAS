@@ -32,7 +32,8 @@ class PrinterService {
 
   /// Imprime [copies] copias. Lanza una excepción con mensaje legible si falla.
   static Future<void> printPhoto(Uint8List jpeg, int copies, AppSettings s) async {
-    final portrait = await compute(ensurePortraitJpeg, jpeg);
+    final inset = s.borderless ? s.bleedPercent.clamp(0, 10) / 100.0 : 0.0;
+    final portrait = await compute(preparePrintJpeg, PrintPrep(jpeg, inset, s.bgColor));
     switch (s.printMethod) {
       case 'system':
         if (!Platform.isWindows && !Platform.isMacOS) {

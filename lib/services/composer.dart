@@ -276,3 +276,31 @@ Uint8List ensurePortraitJpeg(Uint8List jpeg) {
   final rotated = img.copyRotate(im, angle: 90);
   return img.encodeJpg(rotated, quality: 95);
 }
+
+class PrintPrep {
+  final Uint8List jpeg;
+  final double inset; // fracción por lado (0.03 = 3 %)
+  final int bgColor;
+  PrintPrep(this.jpeg, this.inset, this.bgColor);
+}
+
+/// Pone la foto en vertical y, si se pide, la encoge un poco sobre el color
+/// de fondo para que la ampliación de la impresión sin bordes no la recorte.
+Uint8List preparePrintJpeg(PrintPrep a) {
+  var im = img.decodeJpg(a.jpeg);
+  if (im == null) return a.jpeg;
+  if (im.width > im.height) im = img.copyRotate(im, angle: 90);
+  if (a.inset > 0) {
+    final nw = (im.width * (1 - 2 * a.inset)).round();
+    final nh = (im.height * (1 - 2 * a.inset)).round();
+    final small = img.copyResize(im,
+        width: nw, height: nh, interpolation: img.Interpolation.average);
+    final canvas = img.Image(width: im.width, height: im.height);
+    img.fill(canvas,
+        color: img.ColorRgb8((a.bgColor >> 16) & 0xFF, (a.bgColor >> 8) & 0xFF, a.bgColor & 0xFF));
+    img.compositeImage(canvas, small,
+        dstX: (im.width - nw) ~/ 2, dstY: (im.height - nh) ~/ 2);
+    im = canvas;
+  }
+  return img.encodeJpg(im, quality: 95);
+}
